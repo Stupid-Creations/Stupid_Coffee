@@ -1,6 +1,7 @@
 import pygame
 import sys
 
+pygame.init()
 pygame.font.init()
 class SpriteSheet:
     def __init__(self,image):
@@ -26,6 +27,10 @@ class character:
         self.scale = scale
         self.solid = is_solid
         self.Rect = pygame.Rect(coords[0],coords[1],self.shape[0]*scale,self.shape[1]*scale)
+        self.render=False
+        self.currentlog = 0
+        self.dialogue=None
+        self.dbox = dialogbox("",(450,450),30,imgsource="textbox.jpg",font="pkmnfl.ttf")
         if is_solid:
             character.instances.append(self)
 
@@ -73,9 +78,8 @@ class character:
         surface.blit(self.current_sprite,(self.Rect.x,self.Rect.y))
 
     def move(self,change):
-        self.Rect.x += change[0]*self.scale
-        self.Rect.y += change[1]*self.scale
-
+        self.Rect.x += change[0]*self.scale*self.shape[0]/8
+        self.Rect.y += change[1]*self.scale*self.shape[1]/8
         if self.solid:
             for i in character.instances:
                 if self.Rect.colliderect(i.Rect) and i != self:
@@ -87,25 +91,53 @@ class character:
                         self.Rect.bottom = i.Rect.top
                     if change[1] < 0:
                         self.Rect.top = i.Rect.bottom
+    def speak(self,dialogue):
+        self.dialogue = dialogue
+        self.dbox.update_text(dialogue)
+        self.render = True
+    def rendertext(self,surface,text_strobe_rate = 5, text_offset = (0,0)):
+        if self.render:
+            self.dbox.render_strobe(surface,(0,int(3/4*surface.get_height())),text_strobe_rate,offset=text_offset)
+    def speak_several(self,dialogues):
+        if self.currentlog < len(dialogues):
+            self.dialogues = dialogues
+            self.speak(dialogues[self.currentlog])
+            self.currentlog+=1
+        else:
+            self.render = False
+    def check_adjacent(self,char):
+        return self.Rect.bottom == char.Rect.top or self.Rect.top == char.Rect.bottom or self.Rect.left == char.Rect.right or self.Rect.right == char.Rect.left
+    
+def handle_text(surface,text_strobe_rate=5,text_offset=(0,0)):
+    for i in character.instances:
+        if i.dialogue:
+            i.rendertext(surface,text_strobe_rate,text_offset)
+
 
 #add nice looking dialogue box (pictures)
 #add strobing
-class dialogbox:
+class dialogbox: 
     def __init__(self,text,windim,size=36,font = None,imgsource = None):
         self.text = text
         self.anitimer = 0
         self.width = windim[0] 
+        self.size = size
         self.font = pygame.font.Font(font=font,size=size)
         self.ts = self.font.render(self.text,True,(255,255,255))
         self.lines = self.wrap_text(self.text,self.width-20)
         self.height = sum([self.font.size(i)[1]*2 for i in self.lines])
         self.add = 0
         self.cl = 0
+        self.done = False
         self.stroby_text = [[""] for i in self.lines]
+        self.fontsource = font
         if imgsource is None:
             self.img = None
+            self.imsource = None
         else:
+            self.imsource = imgsource
             self.img = pygame.image.load(imgsource)
+
     def wrap_text(self,text,width):
         words = text.split(" ")
         lines = []
@@ -134,92 +166,41 @@ class dialogbox:
         y+=offset[1]
         originaly = y
         self.anitimer += 1
+        if self.cl >= len(self.lines):
+            self.done = True
         if self.img is None:
             pygame.draw.rect(screen,(125,255,0),pygame.Rect(x,originaly,self.width,self.height))
         else:
             screen.blit(pygame.transform.scale(self.img,(self.width,max(self.height+offset[1],screen.get_height()/4))),(x-offset[0],originaly-offset[1]))
-        if self.anitimer >= fbu and ''.join(self.stroby_text[-1]) != self.lines[-1]:
+        if self.anitimer >= fbu and not self.done:
             if self.add >= len(self.lines[self.cl]):
                 self.add = 0
                 self.cl+=1
-            self.stroby_text[self.cl]+=self.lines[self.cl][self.add]
-            self.anitimer = 0
-            self.add+=1
+                if self.cl >= len(self.lines):
+                    self.done = True  
+            if not self.done:  
+                self.stroby_text[self.cl]+=self.lines[self.cl][self.add]
+                self.anitimer = 0
+                self.add+=1
 
         for line in self.stroby_text:
             screen.blit(self.font.render(''.join(line),True,(0,0,0)),(x,y))
             y+=self.font.get_height()*2+10
+    def update_text(self,newtext):
+        self.text = newtext
+        self.ts = self.font.render(self.text,True,(255,255,255))
+        self.lines = self.wrap_text(self.text,self.width-20)
+        self.height = sum([self.font.size(i)[1]*2 for i in self.lines])
+        self.stroby_text = [[""] for i in self.lines]
+        self.done = False
+        self.anitimer = 0
+        self.add = 0
+        self.cl = 0
+    
+
+        
 
 
-#make a clock
-pygame.display.init()
-clock = pygame.time.Clock()
 
-wn = pygame.display.set_mode((450,450))
 
-maps = [["A_A_A_A_A_A"],
-        ["A_A_A_A_A_A"],
-        ["A_A_A_A_A_A"],
-        ["A_A_A_A_A_A"],
-        ["A_A_A_A_A_A"]]
-#SPRITE DEETS: 15X25 size!! 6 y gap between layers
-
-counter = 0
-aniturtle = 0
-# main loop to run the game
-char = character("helpme.png",(15,25),(200,200),2)
-char.save_sprites(4,4,(2,40),6)
-char.create_sheet_bindings(["front","right","back","left"])
-char.set_current_sprite(0,label='front')
-
-tiles = []
-for i in range(len(maps)):
-    for j in range(len(maps[i][0])):
-        if maps[i][0][j] == "A":
-            tiles.append(character(("helpme.png"),(15,25),(j*char.scale*char.shape[0],i*char.scale*char.shape[1]),2))
-            tiles[-1].save_sprites(4,4,(2,40),6)
-            tiles[-1].create_sheet_bindings(["front","right","back","left"])
-            tiles[-1].set_current_sprite(0,label='front')
-
-a = dialogbox("THIS IS A REALLY REALLY STUPID PROJECT I DONT REALLY KNOW WHAT TO WRITE AHHH",(450,450),30,imgsource="textbox.jpg",font="pkmnfl.ttf")
-
-while True:
-    wn.fill((0,0,0))
-    for i in tiles:
-        i.display_sprite(wn)
-    char.display_sprite(wn)
-    a.render_strobe(wn,(0,300),5,offset=(20,30))
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-
-    keys = pygame.key.get_pressed()
-
-    if keys[pygame.K_RIGHT]:
-        if char.row!="right":
-            char.set_current_sprite(0,label="right")
-        char.animate(15)
-        char.move((1,0))
-
-    if keys[pygame.K_DOWN]:
-        if char.row != "front":
-            char.set_current_sprite(0,label="front")
-        char.animate(15)
-        char.move((0,1))
-
-    if keys[pygame.K_UP]:
-        if char.row != "back":
-            char.set_current_sprite(0,label="back")
-        char.animate(15)
-        char.move((0,-1))
-
-    if keys[pygame.K_LEFT]:
-        char.animate(15)
-        if char.row != "left":
-            char.set_current_sprite(0,label="left")
-        char.move((-1,0))
-
-    pygame.display.update()
-    clock.tick(60)
 
