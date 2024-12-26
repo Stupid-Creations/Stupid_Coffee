@@ -19,7 +19,7 @@ class SpriteSheet:
 class character:
     instances = []
     def __init__(self,sprites,shape,coords,scale,is_solid = True):
-        self.spritesheet = SpriteSheet(sprites)
+        self.spritesheet = SpriteSheet(sprites) if sprites is not None else None
         self.shape = shape
         self.current_sprite = None
         self.counter = None
@@ -74,8 +74,9 @@ class character:
         
     def display_sprite(self,surface):
         if self.current_sprite == None:
-            raise ValueError("sprite not set")
-        surface.blit(self.current_sprite,(self.Rect.x,self.Rect.y))
+            pygame.draw.rect(surface,(255,125,0),self.Rect)
+        else:
+            surface.blit(self.current_sprite,(self.Rect.x,self.Rect.y))
 
     def move(self,change):
         self.Rect.x += change[0]*self.scale*self.shape[0]/8
