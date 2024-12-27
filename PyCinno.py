@@ -54,17 +54,18 @@ class character:
         self.row = y
         self.counter = x
 
-    def animate(self,frames_before_update):            
+    def animate(self,frames_before_update,loop=True):            
         if self.counter >= len(self.sprites[self.row]):
-            self.counter = 0
+            if loop:
+                self.counter = 0
+            else:
+                return 
         self.set_current_sprite(self.counter,self.row)
         fbu = frames_before_update
         self.anitimer+=1
         if self.anitimer >= fbu:
             self.counter += 1
             self.anitimer = 0
-            return 0
-        return 1/frames_before_update
     
     def create_sheet_bindings(self,labels):
         if len(labels) != len(self.sprites):
@@ -107,7 +108,7 @@ class character:
         else:
             self.render = False
     def check_adjacent(self,char):
-        return self.Rect.bottom == char.Rect.top or self.Rect.top == char.Rect.bottom or self.Rect.left == char.Rect.right or self.Rect.right == char.Rect.left
+        return self.Rect.bottom == char.Rect.top or self.Rect.top == char.Rect.bottom or self.Rect.left == char.Rect.right or self.Rect.right == char.Rect.left or char.Rect.colliderect(self.Rect)
     
 def handle_text(surface,text_strobe_rate=5,text_offset=(0,0)):
     for i in character.instances:
